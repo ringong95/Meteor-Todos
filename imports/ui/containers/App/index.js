@@ -4,7 +4,9 @@ import { ToDos } from '../../../api/todos'
 import { createContainer } from 'meteor/react-meteor-data';
 import { Todo } from '../../components/Todo'
 import { ClearButton } from '../../components/ClearButton'
+import AccountsUIWrapper from './../../components/AccountsUiWrapper';
 import ToDoInput from '../../components/ToDoInput'
+
 import './styles.css';
 
 class App extends Component {
@@ -26,7 +28,7 @@ class App extends Component {
   }
 
   toggleComplete(item) {
-    ToDos.update(item._id, { title: item.title, complete: !item.complete })
+    ToDos.update(item._id, { $set:{ complete: !item.complete }})
   }
 
   removeToDo(item) {
@@ -41,10 +43,7 @@ class App extends Component {
   addToDo(event) {
     event.preventDefault();
     if (this.state.inputValue) {
-      ToDos.insert({
-        title: this.state.inputValue,
-        complete: false
-      });
+      Meteor.call('todos.addTodo', this.state.inputValue)
       this.setState({
         inputValue: ''
       })
@@ -56,32 +55,45 @@ class App extends Component {
   }
 
   render() {
-    const { todos } = this.props;
+    const { todos, currentUser } = this.props;
     return (
-      <div className="todo-list">
-        <h1> So Much To Do</h1>
-        <div className="add-todo">
-          <ToDoInput
-            addToDo={this.addToDo}
-            value={this.state.inputValue}
-            onChange={this.handleInputChange}
-            autoFocus={true}
-          />
+      <div className="app-wrapper">
+        <div className="login-wrapper">
+          <AccountsUIWrapper />
         </div>
-        <ul>
+        <div className="todo-list">
+          <h1> So Much To Do</h1>
+          {currentUser ?
+            <div>
+              <div className="add-todo">
+                <ToDoInput
+                  addToDo={this.addToDo}
+                  value={this.state.inputValue}
+                  onChange={this.handleInputChange}
+                  autoFocus={true}
+                />
+              </div>
+              <ul>
 
-          {this.props.todos.map((toDo, index) => {
-            return (
-              <Todo key={toDo._id}
-                toDo={toDo}
-                toggleComplete={this.toggleComplete.bind(this, toDo)}
-                removeToDo={this.removeToDo.bind(this, toDo)} />)
-          })}
-        </ul>
-        <div className="todo-admin">
-          <ToDoCount number={todos.length} />
-          {this.hasCompleted() &&
-            <ClearButton removeCompleted={this.removeCompleted} />
+                {this.props.todos.filter(todo=> this.props.currentUserId === todo.owner).map((toDo, index) => {
+                  return (
+                    <Todo key={toDo._id}
+                      toDo={toDo}
+                      toggleComplete={this.toggleComplete.bind(this, toDo)}
+                      removeToDo={this.removeToDo.bind(this, toDo)} />)
+                })}
+              </ul>
+              <div className="todo-admin">
+                <ToDoCount number={this.props.todos.filter(todo=> this.props.currentUserId === todo.owner).length} />
+                {this.hasCompleted() &&
+                  <ClearButton removeCompleted={this.removeCompleted} />
+                }
+              </div>
+            </div>
+            :
+            <div className="logged-out-message">
+              <p> Please sign in to see your todos. </p>
+            </div>
           }
         </div>
       </div>
@@ -90,6 +102,8 @@ class App extends Component {
 }
 App.PropTypes = {
   todos: PropTypes.array.isRequired,
+  currentUser: PropTypes.object,
+  currentUserId: PropTypes.string,
 };
 
 App.defaultProps = {
@@ -98,6 +112,8 @@ App.defaultProps = {
 
 export default createContainer(() => {
   return {
+    currentUser: Meteor.user(),
+    currentUserId: Meteor.userId(),
     todos: ToDos.find({}).fetch()
   };
 }, App);
